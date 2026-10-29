@@ -53,7 +53,8 @@ if args[:3] == ["plugin", "marketplace", "list"]:
 elif args[:3] == ["plugin", "marketplace", "add"]:
     market.touch()
     if name == "claude":
-        path = pathlib.Path.home() / ".claude/plugins/known_marketplaces.json"
+        config = pathlib.Path(os.environ.get("CLAUDE_CONFIG_DIR") or pathlib.Path.home() / ".claude")
+        path = config / "plugins/known_marketplaces.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({market_name: {}, "other": {"autoUpdate": False}}))
 elif args[:2] in (["plugin", "install"], ["plugin", "add"]):
@@ -125,6 +126,20 @@ class InstallerTests(unittest.TestCase):
         self.assertTrue(known[MARKET]["autoUpdate"])
         self.assertEqual(known["other"], {"autoUpdate": False})
         self.assertFalse(any(c[0] == "codex" for c in self.calls()))
+
+    def test_claude_config_dir_is_honoured(self):
+        (self.bin / "codex").unlink()
+        config = self.root / "claude config"
+        config.mkdir()
+        (config / ".claude.json").write_text('{"mcpServers": {"grafana": {}}}')
+        self.env["CLAUDE_CONFIG_DIR"] = str(config)
+
+        result = self.run_install("--agents", "claude")
+        self.assert_ok(result)
+        known = json.loads((config / "plugins/known_marketplaces.json").read_text())
+        self.assertTrue(known[MARKET]["autoUpdate"])
+        self.assertFalse((self.home / ".claude").exists())
+        self.assertRegex(result.stdout, r"ok .*Grafana MCP server")
 
     def test_both_and_repeat_install(self):
         self.assert_ok(self.run_install("--agents", "all"))
