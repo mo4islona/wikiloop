@@ -82,7 +82,8 @@
       "last-verified"
     ],
     "english_only": true,
-    "allowed_home_paths": []
+    "allowed_home_paths": [],
+    "secret_patterns": []
   },
   "report_session": {
     "kind": "s3",

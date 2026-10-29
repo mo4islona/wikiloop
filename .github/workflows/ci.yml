@@ -23,4 +23,4 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.9"
-      - run: python3 -m py_compile hooks/*.py wikiloop/config.py wikiloop/candidate.py wikiloop/inbox.py wikiloop/report_session.py wikiloop/session_summary.py oncall/*.py oncall/sources/*.py
+      - run: python3 -m py_compile hooks/*.py wikiloop/config.py wikiloop/candidate.py wikiloop/inbox.py wikiloop/report_session.py wikiloop/secret_scan.py wikiloop/session_summary.py oncall/*.py oncall/sources/*.py

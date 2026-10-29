@@ -76,6 +76,11 @@ to list skills that live in other repos.
 | `required_fields` | `name, description, owner, last-verified` | frontmatter every skill carries |
 | `english_only` | `true` | refuse non-Latin scripts in skills and docs |
 | `allowed_home_paths` | `[]` | `~/` paths a skill may name, e.g. `[".grafana"]` for a token file; `~/.cache` is always allowed |
+| `secret_patterns` | `[]` | regexes for the company's own token shapes, e.g. `["\\bacme_[A-Za-z0-9]{32}"]`; the lint refuses them in any tracked file and `report-session` redacts them |
+
+The secret check reads every file git tracks, not only skills. It knows common token shapes
+(GitHub, Slack, AWS, Google, Grafana, GitLab, model APIs, JWTs), private keys, and
+`password`/`token`/`secret` fields in JSON, YAML, env files, URLs and command flags.
 
 ### Extensions
 

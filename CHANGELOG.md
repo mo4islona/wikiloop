@@ -4,6 +4,11 @@
 
 - `wikiloop gardener` gives the re-verify session every commit, across all API pages; a
   source it could not read keeps the old `last-verified`.
+- `wikiloop lint` checks every tracked file for secrets, with one scanner shared with
+  `report-session`: GitHub fine-grained, Google, GitLab and model API tokens, quoted JSON
+  fields, PKCS#8 keys. `lint.secret_patterns` adds a company's own token shapes.
+- `report-session` redacts the note with the complaint as well as the transcript, and
+  removes a private key whole instead of its header line.
 
 ## 0.1.0 — 2026-10-29
 

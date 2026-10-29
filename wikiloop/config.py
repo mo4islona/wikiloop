@@ -70,6 +70,7 @@ DEFAULTS: dict = {
         "required_fields": ["name", "description", "owner", "last-verified"],
         "english_only": True,
         "allowed_home_paths": [],
+        "secret_patterns": [],
     },
     "report_session": {
         "kind": "none",
@@ -254,6 +255,12 @@ def validate(cfg: dict) -> list[str]:
             re.compile(pattern)
         except re.error as e:
             errors.append(f"`investigation.patterns` {pattern!r}: {e}")
+
+    for pattern in cfg["lint"]["secret_patterns"]:
+        try:
+            re.compile(pattern)
+        except re.error as e:
+            errors.append(f"`lint.secret_patterns` {pattern!r}: {e}")
 
     if cfg["report_session"]["kind"] not in ("none", "gcs", "s3"):
         errors.append("`report_session.kind` must be `none`, `gcs` or `s3`")

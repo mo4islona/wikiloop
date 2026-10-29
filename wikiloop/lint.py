@@ -11,19 +11,13 @@ from __future__ import annotations
 
 import importlib.util
 import re
+import subprocess
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
-SECRET_PATTERNS = [
-    re.compile(r"glsa_[A-Za-z0-9_]{20,}"),
-    re.compile(r"xox[abp]-[A-Za-z0-9-]{10,}"),
-    re.compile(r"gh[pousr]_[A-Za-z0-9]{30,}"),
-    re.compile(r"AKIA[0-9A-Z]{16}"),
-    re.compile(r"-----BEGIN (RSA|OPENSSH|EC) PRIVATE KEY"),
-    re.compile(r"(?i)(password|token|secret)\s*[:=]\s*['\"]?[A-Za-z0-9+/]{16,}"),
-    re.compile(r"eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}"),
-]
+from wikiloop import secret_scan
+
 IP = re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])")
 # Scripts that are not Latin: the wiki is English, and a mixed file splits every grep.
 NON_LATIN = re.compile("[Ͱ-ϿЀ-ӿ֐-׿؀-ۿऀ-ॿ"
@@ -94,9 +88,6 @@ def check_common(ctx: Context, path: Path, text: str, volatile: bool = True) -> 
     for i, line in enumerate(text.splitlines(), 1):
         if english_only and NON_LATIN.search(line):
             ctx.err(path, f"line {i}: non-Latin script; the wiki is English only")
-        for pat in SECRET_PATTERNS:
-            if pat.search(line):
-                ctx.err(path, f"line {i}: looks like a secret ({pat.pattern[:30]}...)")
         if not volatile:
             continue
         if IP.search(line):
@@ -205,9 +196,30 @@ def check_skill(ctx: Context, skill_dir: Path) -> None:
         elif len(rtext.encode()) > caps["reference_max_bytes"]:
             ctx.err(ref, f"{len(rtext.encode())} bytes, cap is {caps['reference_max_bytes']}; split it or make it grep-first")
 
-    # archive/ holds full write-ups the router never points at: no caps, still no secrets.
+    # archive/ holds full write-ups the router never points at: no caps, still English.
     for old in sorted((skill_dir / "archive").glob("*.md")):
         check_common(ctx, old, old.read_text(), volatile=False)
+
+
+def tracked_files(root: Path) -> list[Path]:
+    proc = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True, text=True)
+    if proc.returncode != 0:
+        return [p for p in root.rglob("*") if p.is_file() and ".git" not in p.parts]
+    return [root / name for name in proc.stdout.split("\0") if name]
+
+
+def check_secrets(ctx: Context) -> None:
+    """Every tracked file, not only skills: a token in an extension or an eval leaks the same way."""
+    extra = secret_scan.wiki_tokens(ctx.cfg)
+    for path in tracked_files(ctx.root):
+        try:
+            text = path.read_text()
+        except (UnicodeDecodeError, OSError):
+            continue
+        for i, line in enumerate(text.splitlines(), 1):
+            kinds = secret_scan.find(line, extra)
+            if kinds:
+                ctx.err(path, f"line {i}: looks like a secret ({', '.join(kinds)}); say where it is kept, never what it is")
 
 
 def run_extensions(ctx: Context) -> None:
@@ -223,6 +235,7 @@ def run_extensions(ctx: Context) -> None:
 
 def lint(root: Path, cfg: dict) -> Context:
     ctx = Context(root, cfg)
+    check_secrets(ctx)
     for base in (ctx.skills, root / MAINTAINER_SKILLS):
         for skill_dir in sorted(p for p in base.iterdir() if p.is_dir()) if base.is_dir() else []:
             check_skill(ctx, skill_dir)

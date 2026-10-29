@@ -27,16 +27,17 @@ question except the one in step 3.
 2. **Take the complaint as written.** One line, the user's words, in English. If the user
    wrote in another language, translate. Do not add your own reading of what went wrong.
 3. **Check what the redaction cannot see.** The transcript holds every command the agent ran
-   and every output it read. If the session handled secrets that token-shaped redaction
-   misses (a pasted private key, customer data, a dump of a Secret), say so and let the user
-   decide before the upload.
+   and every output it read. The redaction knows token shapes, `password: ...`-style fields
+   and private keys; if the session handled secrets it cannot recognise (customer data, a
+   Secret whose keys are not named as secrets), say so and let the user decide before the
+   upload.
 4. **Upload:**
 
    ```
    python3 <plugin root>/{{core.path}}/bin/wikiloop report-session <transcript> "<complaint>"
    ```
 
-   It redacts token-shaped strings, writes a note with the complaint, uploads both under
+   It redacts secrets in the transcript and in a note with the complaint, uploads both under
    `<date>/<user>-<session>-<time>/` in `{{report_session.bucket}}` and prints the prefix. It
    needs the storage CLI logged in (`gcloud` for `gs://`, `aws` for `s3://`); if it is not,
    tell the user the login command and try again. `--dry-run` shows what would be uploaded.

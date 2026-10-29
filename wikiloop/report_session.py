@@ -1,7 +1,7 @@
 """`wikiloop report-session <transcript.jsonl> "<what went wrong>" [--dry-run]`
 
-Redacts token-shaped strings, then uploads the transcript and a note to the wiki's
-session-report bucket under <date>/<user>-<session>-<time>/. The bucket is write-only for the
+Redacts secret-shaped strings in the transcript and in a note with the complaint, then
+uploads both to the wiki's session-report bucket under <date>/<user>-<session>-<time>/. The bucket is write-only for the
 uploader: it cannot list or read back, and the prefix carries the minute, so nothing is
 overwritten. Prints the prefix. `--dry-run` redacts and reports, uploads nothing.
 """
@@ -17,31 +17,20 @@ import tempfile
 import time
 from pathlib import Path
 
+from wikiloop import secret_scan
 from wikiloop.config import runtime_config
 
-# The shapes the lint refuses, plus bearer tokens. Replaced, not dropped, so the line structure
-# a reader relies on survives.
-PATTERNS = [
-    (re.compile(r"glsa_[A-Za-z0-9_]{20,}"), "<redacted>"),
-    (re.compile(r"xox[abp]-[A-Za-z0-9-]{10,}"), "<redacted>"),
-    (re.compile(r"gh[pousr]_[A-Za-z0-9]{30,}"), "<redacted>"),
-    (re.compile(r"AKIA[0-9A-Z]{16}"), "<redacted>"),
-    (re.compile(r"-----BEGIN (?:RSA|OPENSSH|EC) PRIVATE KEY[^-]*-----"), "<redacted>"),
-    (re.compile(r"(?i)((?:password|token|secret)\s*[:=]\s*['\"]?)[A-Za-z0-9+/]{16,}"), r"\1<redacted>"),
-    (re.compile(r"eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}(?:\.[A-Za-z0-9_-]+)?"), "<redacted>"),
-    (re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._-]{16,}"), r"\1<redacted>"),
-]
 UPLOADERS = {"gcs": ("gcloud", ["storage", "cp", "--no-user-output-enabled"]), "s3": ("aws", ["s3", "cp", "--quiet"])}
 
 
-def redact(src: Path, dst: Path) -> int:
+def redact(src: Path, dst: Path, extra: list) -> int:
+    """The lint's scanner with a lower bar: a false hit costs a word in a replay, a miss leaks
+    a credential. Replaced, not dropped, so the line structure a reader relies on survives."""
     count = 0
-    with src.open() as fin, dst.open("w") as fout:
-        for line in fin:
-            for pattern, replacement in PATTERNS:
-                line, n = pattern.subn(replacement, line)
-                count += n
+    with src.open(errors="replace") as fin, dst.open("w") as fout:
+        for line, n in secret_scan.redact(fin, extra):
             fout.write(line)
+            count += n
     return count
 
 
@@ -52,13 +41,14 @@ def timestamps(path: Path) -> tuple[str, str]:
 
 def note(transcript: Path, complaint: str, redacted: int, user: str) -> str:
     first, last = timestamps(transcript)
-    lines = sum(1 for _ in transcript.open())
+    with transcript.open(errors="replace") as f:
+        lines = sum(1 for _ in f)
     return (
         "# Session report\n\n"
         f"- reported: {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} by {user}\n"
         f"- session: {transcript.stem} ({lines} records, {first} .. {last})\n"
         f"- plugin: {os.environ.get('CLAUDE_PLUGIN_ROOT', 'unknown')}\n"
-        f"- redacted strings: {redacted}\n\n"
+        f"- redacted strings in the transcript: {redacted}\n\n"
         f"## What went wrong\n\n{complaint}\n"
     )
 
@@ -89,14 +79,19 @@ def main(argv: list[str]) -> int:
     stamp = time.strftime("%Y-%m-%dT%H%M", time.gmtime())
     prefix = f"{target['bucket'].rstrip('/')}/{stamp[:10]}/{user}-{transcript.stem}-{stamp[11:]}"
 
+    extra = secret_scan.wiki_tokens(cfg)
     with tempfile.TemporaryDirectory() as work:
         redacted_path = Path(work) / "transcript.jsonl"
-        count = redact(transcript, redacted_path)
+        count = redact(transcript, redacted_path, extra)
+
+        # The complaint is the user's own text and may quote what the session printed.
+        note_text, in_note = secret_scan.redact_text(note(transcript, complaint, count, user), extra)
+        count += in_note
         note_path = Path(work) / "note.md"
-        note_path.write_text(note(transcript, complaint, count, user))
+        note_path.write_text(note_text)
 
         if dry_run:
-            print(f"dry run: would upload to {prefix}/\n")
+            print(f"dry run: would upload to {prefix}/ ({count} strings redacted)\n")
             print(note_path.read_text())
             return 0
 
