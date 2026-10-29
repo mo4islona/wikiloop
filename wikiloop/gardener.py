@@ -9,8 +9,8 @@ A skill's `sources` are GitHub URLs (a repo, or a tree/blob path in it). Commits
 after `last-verified` mean the skill may describe something that moved. Skills past
 `lint.stale_days` are listed even without commits. `--fix` runs `claude -p` in a fresh git
 worktree per skill: the session reads the commits, checks the skill sentence by sentence,
-edits only what is now false, bumps `last-verified` and opens a PR for a person to review.
-Needs `gh` and `claude`.
+edits only what is now false, bumps `last-verified` only if it read every commit, and opens a
+PR for a person to review. Needs `gh` and `claude`.
 """
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 GITHUB = re.compile(r"^https://github\.com/([^/]+)/([^/]+?)(?:/(?:tree|blob)/([^/]+)/(.+?))?/?$")
+# The console report only; a session always gets every commit.
 COMMITS_SHOWN = 5
 SESSION_MAX_TURNS = 80
 SESSION_TOOLS = "Read,Glob,Grep,Edit,Write,Skill,Bash(git *),Bash(gh *),Bash(python3 *)"
@@ -33,7 +34,7 @@ Its sources have commits since that date, listed below. Read `CONTRIBUTING.md` f
 `skills/{skill}/SKILL.md` and its `references/`.
 
 {report}
-
+{unread}
 Your job is to check that the skill does not lie, not to grow it. For each commit, read the
 diff (`gh api repos/OWNER/REPO/commits/SHA` returns files with patches; `gh pr view` /
 `gh pr diff` when the title names a PR). Then decide, sentence by sentence, whether the skill
@@ -49,8 +50,12 @@ table names, error codes or sizes. If the diff shows a mechanism-level trap that
 lacks, do not write it into the skill. Put it in the PR body under `Candidate:` in one or two
 sentences, so a reviewer decides.
 
-Set `last-verified` in `skills/{skill}/SKILL.md` to {today}, run `python3 {core}/bin/wikiloop build`
-and `python3 {core}/bin/wikiloop lint`, and fix anything they report.
+`last-verified` claims that every commit above was checked. Set it in
+`skills/{skill}/SKILL.md` to {today} only if you read the diff of every commit listed and the
+list above names no unread source. Otherwise leave the date as it is and name each commit or
+source you could not check, in the PR body or in your reply. Run
+`python3 {core}/bin/wikiloop build` and `python3 {core}/bin/wikiloop lint`, and fix anything
+they report.
 
 If `git status --short` is empty after that, there is nothing to record: do not commit, do
 not open a PR. Reply with `holds: nothing to change`, one line per commit reviewed, and any
@@ -106,14 +111,16 @@ def commits_since(url: str, since: date) -> list[dict] | None:
     if path:
         query += f"&path={path}"
 
+    # Every page: a session told "these are the commits" bumps the date over the ones it never saw.
     try:
-        raw = gh("api", f"repos/{owner}/{repo}/commits?{query}")
+        raw = gh("api", "--paginate", f"repos/{owner}/{repo}/commits?{query}", "--jq", ".[]")
     except RuntimeError as e:
         return [{"error": str(e)}]
 
+    commits = [json.loads(line) for line in raw.splitlines() if line.strip()]
     return [{"sha": c["sha"][:7], "date": c["commit"]["committer"]["date"][:10],
              "title": c["commit"]["message"].split("\n", 1)[0], "url": c["html_url"]}
-            for c in json.loads(raw)]
+            for c in commits]
 
 
 def scan(root: Path, stale_days: int, since: date | None = None) -> list[dict]:
@@ -142,7 +149,11 @@ def scan(root: Path, stale_days: int, since: date | None = None) -> list[dict]:
     return findings
 
 
-def render(findings: list[dict], stale_days: int) -> str:
+def unread_sources(finding: dict) -> list[str]:
+    return [src["url"] for src in finding["changed"] if "error" in src["commits"][0]]
+
+
+def render(findings: list[dict], stale_days: int, shown: int | None = COMMITS_SHOWN) -> str:
     if not findings:
         return "Nothing to re-verify: every skill's sources are unchanged since `last-verified`."
 
@@ -161,11 +172,23 @@ def render(findings: list[dict], stale_days: int) -> str:
                 continue
 
             out.append(f"  - {src['url']}: {len(commits)} commit(s)")
-            for c in commits[:COMMITS_SHOWN]:
+            for c in commits[:shown]:
                 out.append(f"    - [{c['sha']}]({c['url']}) {c['date']} {c['title']}")
-            if len(commits) > COMMITS_SHOWN:
-                out.append(f"    - … and {len(commits) - COMMITS_SHOWN} more")
+            if shown is not None and len(commits) > shown:
+                out.append(f"    - … and {len(commits) - shown} more")
     return "\n".join(out)
+
+
+def session_prompt(cfg: dict, finding: dict) -> str:
+    unread = unread_sources(finding)
+    note = ""
+    if unread:
+        note = (f"\nThese sources could not be read: {', '.join(unread)}. Check what you can, but do "
+                "not change `last-verified`.\n")
+
+    return PROMPT.format(skill=finding["skill"], owner=finding["owner"], verified=finding["verified"],
+                         report=render([finding], cfg["lint"]["stale_days"], shown=None), unread=note,
+                         today=date.today().isoformat(), core=cfg["core"]["path"])
 
 
 def fix(root: Path, cfg: dict, finding: dict) -> str:
@@ -178,9 +201,7 @@ def fix(root: Path, cfg: dict, finding: dict) -> str:
     subprocess.run(["git", "-C", str(root), "worktree", "add", "-q", "-b", branch, str(worktree), "origin/main"],
                    check=True)
 
-    prompt = PROMPT.format(skill=skill, owner=finding["owner"], verified=finding["verified"],
-                           report=render([finding], cfg["lint"]["stale_days"]), today=date.today().isoformat(),
-                           core=cfg["core"]["path"])
+    prompt = session_prompt(cfg, finding)
     try:
         proc = subprocess.run(
             ["claude", "-p", "--output-format", "json", "--max-turns", str(SESSION_MAX_TURNS),

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- `wikiloop gardener` gives the re-verify session every commit, across all API pages; a
+  source it could not read keeps the old `last-verified`.
+
 ## 0.1.0 — 2026-10-29
 
 First release.
