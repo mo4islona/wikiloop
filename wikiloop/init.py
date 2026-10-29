@@ -69,6 +69,6 @@ def main(argv: list[str]) -> int:
 
     print(f"\n{target}: {len(written)} skeleton files, core {version} in core/.")
     print("Next: fill skills/map-infra and skills/map-product, add a debug skill for the system "
-          "people ask about most, then commit and push. Install with:\n"
-          f"  /plugin marketplace add {args.repo}\n  /plugin install {args.plugin}@{args.plugin}")
+          "people ask about most, then commit and push. Install from the checkout with:\n"
+          "  ./install.sh --agents claude,codex")
     return 0
