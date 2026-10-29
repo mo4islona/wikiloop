@@ -22,6 +22,7 @@
 - `wikiloop evals` runs without the maintainer's user settings, plugins and MCP servers,
   and saves no transcripts.
 - The installer reads `CLAUDE_CONFIG_DIR` for the marketplace list and the MCP check.
+- `wikiloop init` points to `install.sh` for the install.
 
 ## 0.1.0 — 2026-10-29
 
