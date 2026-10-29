@@ -348,5 +348,4 @@ echo "done. Start a new session to load the selected plugins."
 if $use_codex; then
   echo "Codex runs plugin hooks only once trusted: open /hooks in a Codex session and trust the"
   echo "$MARKETPLACE hooks. Until then the skills work and the wiki loop does not."
-  echo "If the next session lists them as new or changed, trust them again."
 fi
