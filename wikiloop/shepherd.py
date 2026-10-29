@@ -27,14 +27,31 @@ def gh(repo: str, *args: str):
     return json.loads(proc.stdout)
 
 
+def check_result(check: dict) -> str:
+    """`pending`, `passed` or `failed` for one rollup entry.
+
+    A check run has `status` and `conclusion`; a commit status from an external CI has only
+    `state`, so reading it as a check run would leave it pending forever.
+    """
+    is_status = check.get("__typename") == "StatusContext" or ("state" in check and "status" not in check)
+    if is_status:
+        if check["state"] in ("PENDING", "EXPECTED"):
+            return "pending"
+        return "passed" if check["state"] == "SUCCESS" else "failed"
+
+    if check.get("status") != "COMPLETED":
+        return "pending"
+    return "passed" if check.get("conclusion") in ("SUCCESS", "SKIPPED", "NEUTRAL") else "failed"
+
+
 def checks_state(rollup: list) -> str:
     if not rollup:
         return "none"
-    if any(c.get("status") != "COMPLETED" for c in rollup):
-        return "pending"
 
-    passed = {"SUCCESS", "SKIPPED", "NEUTRAL"}
-    if all(c.get("conclusion") in passed for c in rollup):
+    results = {check_result(c) for c in rollup}
+    if "pending" in results:
+        return "pending"
+    if results == {"passed"}:
         return "green"
     return "red"
 

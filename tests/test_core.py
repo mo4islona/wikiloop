@@ -129,6 +129,13 @@ class ShepherdTests(unittest.TestCase):
         two_rounds = [self.mark("fix", 1, "1111111"), self.mark("fix", 2, "2222222")]
         self.assertEqual(pr_action(self.pr(two_rounds), 2)[0], "escalate")
 
+    def test_external_ci_statuses_complete(self):
+        merge = self.pr([self.mark("merge")])
+        for state, action in (("SUCCESS", "merge"), ("FAILURE", "escalate"), ("ERROR", "escalate"),
+                              ("PENDING", "wait-checks")):
+            with self.subTest(state):
+                status = {"__typename": "StatusContext", "context": "ci/external", "state": state}
+                self.assertEqual(pr_action({**merge, "statusCheckRollup": [status]}, 2)[0], action)
 
 class BuildTests(unittest.TestCase):
     def test_a_feature_switched_off_leaves_no_index_entry(self):
