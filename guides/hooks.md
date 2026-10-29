@@ -4,10 +4,13 @@
 <!-- section: session-report -->
 {{wiki.plugin}}: this session's transcript is {transcript}. If the session goes badly (the plugin nags, wastes tokens or time, answers wrongly), the user only has to say so: load {{wiki.plugin}}:wiki-report-session and upload the transcript for review.
 
+<!-- section: session-queued -->
+{{wiki.plugin}}: {queued} candidate(s) never reached the tracker and wait in {cache}/candidates.md. At the end of your first reply, tell the user in one line: `{candidate} send` files them once the tracker is reachable, from a terminal if this agent's sandbox blocks the network.
+
 <!-- section: stop-reason -->
 {{wiki.plugin}}: {n} investigation steps since it last asked ({kinds}), and the user has replied since the last one. Default answer: `wiki: nothing new`. A candidate is for a fact the user has seen and not challenged, about {{wiki.domain}}, in a part the wiki maps ({{skills.vendor_examples}} behaviour is vendor docs), whose home is not a repo (a bug fixed or code written here, a README or ADR), and without which an agent would reason wrongly (volatile values never do). Three more tests: strip the date, and if the sentence stops being true it is state (a gap-list row, not an entry); swap {{wiki.company}} for any other company, and if the lesson still holds it is vendor behaviour, whatever project it was met in; rename the code's internal files, functions and config keys while keeping behaviour, and if the explanation changes it is implementation: keep verified behaviour and its conditions. Source citations, metadata and necessary operator settings are allowed; link settings to their source.
 1. `grep -rni '<keyword>' {root}/skills` and `{candidate} search '<keyword>'`. In the wiki: nothing to do. In an open candidate: add only what it lacks, with `{candidate} comment <n>` and the text on stdin.
-2. Missing from both: `{candidate} file -t '<symptom as a person would say it>'` with the body on stdin: Symptom / Root cause / Lesson / {{gate.keys}}, one line each. {{gate.inline_help}} Six lines at most, English, past tense, no IPs, hostnames or secrets; no open, done or now; status only as a tracker link. If filing fails, the command keeps the text in {cache}/candidates.md; say so.
+2. Missing from both: `{candidate} file -t '<symptom as a person would say it>'` with the body on stdin: Symptom / Root cause / Lesson / {{gate.keys}}, one line each. {{gate.inline_help}} Six lines at most, English, past tense, no IPs, hostnames or secrets; no open, done or now; status only as a tracker link. If filing fails, the command queues the text in {cache}/candidates.md; pass on to the user what it prints.
 3. Otherwise reply `wiki: nothing new`. Asked again only after {reask} more steps.
 
 <!-- section: gate-reason -->

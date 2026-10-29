@@ -15,6 +15,10 @@
 - `wikiloop shepherd` reads commit statuses from external CI; they no longer stay pending.
 - `wikiloop shepherd` returns a PR to review when a person removes `needs-human`, as the
   skill says.
+- `wikiloop candidate send` files the candidates and comments queued while the tracker was
+  out of reach, such as in a Codex sandbox without network; until then the session rule
+  tells the user what waits. `candidate search` reports an unreachable tracker instead of a
+  traceback.
 
 ## 0.1.0 — 2026-10-29
 
