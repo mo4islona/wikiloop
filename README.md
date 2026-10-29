@@ -93,8 +93,9 @@ Use `--agents claude` or `--agents codex` to select one. Add `--check` to report
 and installation status. The installer checks access, adds the marketplace, and installs and
 enables the plugin. Start a new agent session afterwards.
 
-**In Codex, open `/hooks` once and trust the wiki's hooks.** Skills are available before
-that step; the automatic contribution prompts require hook trust.
+**In Codex, open `/hooks` and trust the wiki's hooks.** Skills are available before
+that step; the automatic contribution prompts require hook trust. Codex 0.165 lists the hooks
+as new or changed once more on the next start; trust them again then.
 
 | Capability | Claude Code | Codex |
 |---|---|---|
