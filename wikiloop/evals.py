@@ -10,6 +10,10 @@ skill the agent must load first; a grader with `max: 0` says no wiki skill may l
 gets one turn and no tool but Skill, so a run is one model call over the system prompt. The
 layout is the one `claude plugin eval` reads. Needs `claude` logged in (or ANTHROPIC_API_KEY).
 Exit 1 if any case scores below the threshold.
+
+A run loads no user settings and no MCP servers, and saves no transcript: the maintainer's own
+plugins, hooks and servers would change what the agent sees, and an installed copy of this wiki
+would compete with the checkout. Auth set in user settings (`apiKeyHelper`, `env`) is not read.
 """
 from __future__ import annotations
 
@@ -61,6 +65,7 @@ def skills_loaded(root: Path, prompt: str, model: str | None) -> list[str]:
     with tempfile.TemporaryDirectory(prefix="trigger-eval-") as cwd:
         proc = subprocess.run(
             ["claude", "-p", "--output-format", "stream-json", "--verbose", "--max-turns", "1",
+             "--setting-sources", "project,local", "--strict-mcp-config", "--no-session-persistence",
              "--allowedTools", "Skill", "--plugin-dir", str(root),
              *(["--model", model] if model else []), prompt],
             capture_output=True, text=True, cwd=cwd, stdin=subprocess.DEVNULL,
