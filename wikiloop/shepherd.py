@@ -92,7 +92,8 @@ def pr_action(pr: dict, max_rounds: int) -> tuple[str, str]:
     if verdict == "fix":
         return "apply", f"round {last.group(1)} findings in the last shepherd comment"
     if verdict != "merge":
-        return "escalate", f"verdict {verdict}"
+        # the run labels a PR when it posts one of these: no label means a person removed it
+        return "review", f"needs-human removed after verdict {verdict}: round 1"
 
     checks = checks_state(pr["statusCheckRollup"])
     if checks == "green":

@@ -13,6 +13,8 @@
   problem, so after a watcher restart the problem neither drops in severity nor resolves.
 - `wikiloop build` leaves a switched-off feature's skills out of `INDEX.md`.
 - `wikiloop shepherd` reads commit statuses from external CI; they no longer stay pending.
+- `wikiloop shepherd` returns a PR to review when a person removes `needs-human`, as the
+  skill says.
 
 ## 0.1.0 — 2026-10-29
 

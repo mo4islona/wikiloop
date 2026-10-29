@@ -137,6 +137,13 @@ class ShepherdTests(unittest.TestCase):
                 status = {"__typename": "StatusContext", "context": "ci/external", "state": state}
                 self.assertEqual(pr_action({**merge, "statusCheckRollup": [status]}, 2)[0], action)
 
+    def test_removing_needs_human_resumes_review(self):
+        for verdict in ("block", "close", "escalate"):
+            with self.subTest(verdict):
+                action, why = pr_action(self.pr([self.mark("fix"), self.mark(verdict, 2)]), 2)
+                self.assertEqual((action, why.endswith("round 1")), ("review", True))
+
+
 class BuildTests(unittest.TestCase):
     def test_a_feature_switched_off_leaves_no_index_entry(self):
         root = wiki(MINIMAL + '[report_session]\nkind = "gcs"\nbucket = "gs://test-sessions"\n')
