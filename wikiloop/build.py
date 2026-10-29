@@ -153,7 +153,9 @@ def generate(root: Path, cfg: dict) -> tuple[dict[str, str], list[str]]:
 
         files.update(oncall_build.generate(cfg, root))
 
-    files["INDEX.md"] = index.build(root, cfg, files)
+    # a feature switched off leaves its skills on disk until write() deletes them
+    gone = {p for p in previous(root) if p not in files}
+    files["INDEX.md"] = index.build(root, cfg, files, gone)
 
     resolved = {**cfg, "texts": hook_texts(cfg, guides), "generated": sorted([*files, RESOLVED_PATH])}
     files[RESOLVED_PATH] = dump(resolved)

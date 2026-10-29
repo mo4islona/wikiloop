@@ -11,6 +11,7 @@
   removes a private key whole instead of its header line.
 - On-call: a source that is down keeps its evidence while another source still reports the
   problem, so after a watcher restart the problem neither drops in severity nor resolves.
+- `wikiloop build` leaves a switched-off feature's skills out of `INDEX.md`.
 
 ## 0.1.0 — 2026-10-29
 

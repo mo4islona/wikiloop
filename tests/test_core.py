@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 
 from tests.support import CLI, EXAMPLE, REPO
+from wikiloop import build
 from wikiloop.candidate import missing_lines
 from wikiloop.config import ConfigError, load
 from wikiloop.render import Guides, RenderError, render_text, section_hash
@@ -127,6 +128,23 @@ class ShepherdTests(unittest.TestCase):
 
         two_rounds = [self.mark("fix", 1, "1111111"), self.mark("fix", 2, "2222222")]
         self.assertEqual(pr_action(self.pr(two_rounds), 2)[0], "escalate")
+
+
+class BuildTests(unittest.TestCase):
+    def test_a_feature_switched_off_leaves_no_index_entry(self):
+        root = wiki(MINIMAL + '[report_session]\nkind = "gcs"\nbucket = "gs://test-sessions"\n')
+        try:
+            build.write(root, build.generate(root, load(root))[0])
+            self.assertIn("wiki-report-session", (root / "INDEX.md").read_text())
+
+            (root / "wikiloop.toml").write_text(MINIMAL)
+            files, _ = build.generate(root, load(root))
+            build.write(root, files)
+
+            self.assertNotIn("wiki-report-session", (root / "INDEX.md").read_text())
+            self.assertEqual(build.diff(root, build.generate(root, load(root))[0]), [])
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
 
 
 class CycleTests(unittest.TestCase):
