@@ -1,0 +1,72 @@
+# ACME: a fictional company, the example every core change is built and checked against.
+
+[wiki]
+plugin = "acme-wiki"
+company = "ACME"
+domain = "ACME systems"
+repo = "acme/ai-wiki"
+
+[investigation]
+debug_skills = ["debug-*"]
+commands = ["kubectl", "psql", "aws"]
+patterns = ['grafana\.acme\.example/api/']
+mcp_tools = ["mcp__grafana__query_*"]
+
+[skills]
+vendor_examples = "Kubernetes, PostgreSQL, AWS"
+
+[report_session]
+kind = "s3"
+bucket = "s3://acme-agent-sessions"
+
+[oncall]
+enabled = true
+tiers = ["core", "standard"]
+extensions = ["extensions/oncall/regions.py"]
+
+[oncall.subject]
+labels = ["service"]
+noun = "services"
+place_labels = ["namespace", "region", "job"]
+ignore_places = ["monitoring"]
+component_prefixes = { "Checkout" = "checkout", "Payments" = "payments", "Queue" = "queue" }
+split_components = ["replica"]
+variant_label = "replica"
+tier_of = { core = ["checkout", "payments*"] }
+env_of = { staging = ["*-staging"] }
+
+[oncall.alertmanager]
+url = "https://alertmanager.acme.example/api/v2/alerts"
+token_env = "ACME_ALERTMANAGER_TOKEN"
+link_annotation = "dashboard"
+
+[oncall.prometheus]
+url = "https://prometheus.acme.example/api/v1/query"
+token_env = "ACME_PROMETHEUS_TOKEN"
+
+[[oncall.probes]]
+name = "queue-stalled"
+description = "a queue whose consumers stopped: the depth grows, and no rule fires because the consume rules watch errors, not progress"
+query = 'max by (service, queue) (acme_queue_depth) > 1000 and max by (service, queue) (rate(acme_queue_consumed_total[10m])) == 0'
+component = "queue"
+severity = { default = "minor", core = "major" }
+summary = "{queue} holds {value:.0f} messages and made no progress in 10m"
+
+[oncall.restarts]
+enabled = true
+exclude_namespaces = "sandbox-.*"
+severity = { crash-loop = { default = "minor", core = "major" }, oom-killed = "minor", restarted = "info" }
+
+[oncall.routes]
+team_label = "team"
+channel = "alerts-{team}-{severity}"
+severity_names = { info = "minor" }
+url = "https://chat.acme.example/channels/{channel}"
+
+[install]
+access_hint = "ask in #platform for access to acme/ai-wiki"
+checks = [
+  { name = "kubectl", check = "have kubectl", hint = "brew install kubernetes-cli" },
+  { name = "kube context acme-prod-eu", check = "has_kube_context acme-prod-eu", hint = "see skills/map-infra" },
+  { name = "Grafana MCP server in Claude Code", check = "has_mcp grafana", hint = "claude mcp add grafana ...", tier = "optional" },
+]

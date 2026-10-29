@@ -1,0 +1,13 @@
+{
+  "name": "acme-wiki",
+  "owner": {
+    "name": "ACME"
+  },
+  "plugins": [
+    {
+      "name": "acme-wiki",
+      "source": "./",
+      "description": "Self-learning knowledge base for ACME systems: agents read it before acting and file what they learn."
+    }
+  ]
+}

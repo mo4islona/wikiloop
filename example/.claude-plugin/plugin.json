@@ -1,0 +1,5 @@
+{
+  "name": "acme-wiki",
+  "description": "Self-learning knowledge base for ACME systems: agents read it before acting and file what they learn.",
+  "types": "./hooks/oncall/state.d.ts"
+}
