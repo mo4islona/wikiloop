@@ -1,0 +1,10 @@
+#!/usr/bin/env python3
+"""wikiloop: build, lint and run a self-learning team wiki. `wikiloop help` lists the commands."""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from wikiloop.cli import main  # noqa: E402
+
+sys.exit(main(sys.argv[1:]))

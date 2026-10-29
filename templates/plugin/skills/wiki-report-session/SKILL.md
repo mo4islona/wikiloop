@@ -1,0 +1,75 @@
+---
+name: wiki-report-session
+description: >-
+  Report a bad Claude Code session for the {{wiki.company}} wiki maintainers to replay: the plugin nagged, burned tokens, wasted time, answered wrongly. Uploads the transcript to a bucket. Use for "this session was terrible", "annoying", "report this session".
+owner: wikiloop
+last-verified: {{core.released}}
+generated: wikiloop
+---
+
+# Report a bad session
+
+The wiki improves from sessions that went badly, and only from the ones somebody looked at.
+A complaint in chat is lost with the window; the transcript is the evidence. This skill
+uploads it to a write-only bucket where a maintainer replays it later. The user's whole
+effort is one sentence that says what was wrong.
+
+## When the user says the session was bad
+
+Do it, do not discuss it: no defence of the plugin, no summary of the session, and no
+question except the one in step 3.
+
+1. **Find the transcript.** The session context carries a line
+   `{{wiki.plugin}}: this session's transcript is <path>` from the SessionStart hook; use that
+   path. Without it, the transcript is the newest `*.jsonl` under
+   `$HOME/.claude/projects/<cwd with every / replaced by ->/`. Confirm it with `ls -la`; a
+   file that stopped growing hours ago is another session.
+2. **Take the complaint as written.** One line, the user's words, in English. If the user
+   wrote in another language, translate. Do not add your own reading of what went wrong.
+3. **Check what the redaction cannot see.** The transcript holds every command the agent ran
+   and every output it read. If the session handled secrets that token-shaped redaction
+   misses (a pasted private key, customer data, a dump of a Secret), say so and let the user
+   decide before the upload.
+4. **Upload:**
+
+   ```
+   python3 <plugin root>/{{core.path}}/bin/wikiloop report-session <transcript> "<complaint>"
+   ```
+
+   It redacts token-shaped strings, writes a note with the complaint, uploads both under
+   `<date>/<user>-<session>-<time>/` in `{{report_session.bucket}}` and prints the prefix. It
+   needs the storage CLI logged in (`gcloud` for `gs://`, `aws` for `s3://`); if it is not,
+   tell the user the login command and try again. `--dry-run` shows what would be uploaded.
+5. **Reply with one line:** the printed prefix, "expires in {{report_session.ttl_days}} days",
+   and that a maintainer will replay it. Then continue with what the user was doing.
+
+## The bucket
+
+Everyone in the organization can create objects and nothing else: no listing, no read back,
+no overwrite. Readers are named one by one, and a reader sees every transcript, so the list
+stays short. Objects are deleted after {{report_session.ttl_days}} days by a lifecycle rule.
+The setup is in the wikiloop docs (`docs/report-session.md` in the core).
+
+## Replay a reported session (maintainers)
+
+Copy the prefix down, then:
+
+```
+python3 {{core.path}}/bin/wikiloop session-summary <prefix>/transcript.jsonl [--from <ISO>]
+```
+
+Read `note.md` first: it is the user's claim. Then the summary, which answers the usual
+questions without a read of the whole transcript:
+
+| The user says | Where the summary shows it |
+|---|---|
+| "The plugin kept interrupting" | `stop hook blocked the turn`: each block with its time. Compare with `user typed`: a block right after a finding, before the user answered, is the hook asking too early |
+| "It burned tokens" | `prompt-cache rebuilds` and `tool results over 8000 chars`: what the agent read that it should have filtered; `tokens` totals; `--from` isolates the part with the plugin |
+| "It wasted time" | `turns (seconds)` against `user typed`: long turns are the agent's, long gaps between a reply and the next prompt are the user's |
+| "It answered wrongly" | `skills loaded`, then grep the transcript for the claim and read the reference the skill pointed at; a stale reference is a wiki bug, a wrong inference from a right reference is a wording bug |
+
+A replay produces one of three things: a config or guide change in this wiki (a PR that names
+the session prefix), a wiki correction through `wiki-contribute`, or a closed report with one
+line saying the plugin was not the cause. A fault in the rails themselves goes upstream to
+the wikiloop core as an issue a person writes: never the transcript, never wiki content.
+Do not link the bucket object from anything that outlives its expiry; quote what matters.

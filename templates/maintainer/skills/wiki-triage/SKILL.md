@@ -1,0 +1,114 @@
+---
+name: wiki-triage
+description: >-
+  Triage the {{wiki.company}} wiki inbox: open candidates and open PRs. What enters the wiki, at what priority, what is parked, blocked or closed and why; sets the labels. Use for "triage candidates", "weekly wiki pass", "what is in the inbox".
+owner: wikiloop
+last-verified: {{core.released}}
+generated: wikiloop
+---
+
+# Triage the wiki inbox
+
+Input: the open `{{inbox.label}}` issues and open PRs in `{{inbox.repo}}`. Output: every
+candidate carries a verdict in labels, every reject is closed with one line saying why, every
+PR has a next step, and the person running the pass sees one table. `wiki-shepherd` runs the
+same steps without the per-pass confirmation.
+
+## Invariants
+
+- **The gate comes before priority.** A candidate that fails the gate of `wiki-contribute`
+  (not a system the wiki maps; its home is a repo or a vendor's docs; a state snapshot; vendor
+  behaviour in our clothes; an explanation that depends on internal code structure) is
+  closed, never parked. Parking a fact that does not belong only defers the same decision.
+- **A wrong sentence in the wiki outranks a missing one.** If the wiki today asserts the
+  opposite of the candidate, it is `p1` whatever its size: an agent reading it is misled, not
+  merely slowed.
+- **Silent failure is `p1`.** A trap where the agent reports success or "healthy" while wrong
+  (an empty histogram read as no problem) costs an incident, not minutes.
+- **Reach sets `p2` against `p3`.** A trap on a path every session walks beats one on a
+  single node type or a one-off task.
+- **Small accepted facts are parked, not closed.** A closed one-liner gets refiled by the next
+  session that hits it, because the hook cannot see closed issues. `parked` keeps it open and
+  greppable; its comment names the file it lands in.
+- **Blocked names the unblocker.** `blocked` without a comment saying what has to happen first
+  is a parked issue in disguise.
+- **Labels are the state.** Nothing about the inbox lives in a person's head between passes.
+  A merged wiki PR that absorbs a candidate says `Closes #N`; the pass checks that it did.
+  Read the gate lines first: missing, or naming the session's own PR, means close.
+
+## Labels
+
+| Label | Meaning | Who removes it |
+|---|---|---|
+| `{{inbox.label}}` | filed by a session; the inbox | nobody; closed issues keep it |
+| `triaged` | a pass has read it; the other labels are the verdict | nobody |
+| `p1` / `p2` / `p3` | priority by the invariants above | the PR that lands it closes the issue |
+| `parked` | accepted, too small for its own PR; lands when the named file is next touched | the PR that touches the file |
+| `blocked` | cannot land yet; a comment names what unblocks it | the pass, once the unblocker is done |
+| `needs-human` | a decision no automated pass can make; a comment names it | the person who decides |
+
+Closed candidates carry `duplicate` (already in the wiki, or absorbed by a named PR) or
+`wontfix` (fails the gate) and one comment line from the reason list below.
+
+## Placement
+
+| Question | Home |
+|---|---|
+| Does it stay true with the date stripped? | The reference that owns the subject, next to the sentence it corrects; a new bullet or row when there is none |
+| Is it a story with a date: symptom, cause, fix? | An entry in the skill's `incidents.md`, plus one sentence at the mechanism's home when the mechanism was new |
+| Is it a sequence of checks? | The skill's `playbook.md`, or a `howto-` skill |
+
+A fact that fits nowhere means the subject has no sentence yet, not that a new file is due.
+
+## Procedure
+
+1. From a clone of the wiki, dump the inbox. No model call, a few seconds:
+
+   ```
+   python3 {{core.path}}/bin/wikiloop inbox          # every open candidate and PR
+   python3 {{core.path}}/bin/wikiloop inbox --new    # candidates no pass has seen
+   python3 {{core.path}}/bin/wikiloop inbox --issue N
+   ```
+
+   For each candidate: age, state labels, the gate lines, and which wiki files already mention
+   its terms. For each PR: age, checks, reviews, files, `Closes` refs. It flags a missing gate
+   line, a candidate older than 30 days, an unreviewed PR older than a week, and a PR that
+   touches a file an open candidate names without closing it.
+
+2. For every candidate without `triaged`, decide in this order:
+   - Gate (`wiki-contribute`, section 1). Fails: close, reason line.
+   - Already there: open the files the dump listed. Same fact: close as `duplicate`. Same
+     topic, different fact: accept; the entry corrects or extends in place.
+   - Contradiction or silent failure: `p1`. Every session's path: `p2`. Else `p3`.
+   - Home: the Placement table. The verdict names the file and the sentence.
+   - Fewer than three lines and no contradiction: `parked`, with a comment that names the file.
+   - Waiting on something outside the wiki: `blocked`, with a comment that names it.
+   - Two candidates, one entry: keep the richer one, close the other as `duplicate` with a
+     pointer, and copy anything only the closed one said into a comment on the kept one.
+
+3. For every candidate already `triaged`: has a merged PR covered it (close as `duplicate`,
+   name the PR)? Is a `blocked` one unblocked (drop `blocked`)? Older than 30 days: the rota
+   is broken, say so in the summary; do not close it for age.
+
+4. For every open PR: checks green, one review, and no open candidate it silently covers. A
+   PR older than a week with no review is named in the summary. The content review is
+   `wiki-pr-review`.
+
+5. Show the table once: number, verdict, priority, target file and sentence, one-line reason.
+   Then apply with `gh issue edit --add-label` and `gh issue close --comment`. One confirmation
+   per pass, not one per issue. Labels and comments are English, one line, no names of people.
+
+6. Print the summary: counts by verdict, the `p1` list with target files, PRs that wait for a
+   review, and any sign that the loop is broken (a candidate past 30 days, a refiled fact, a
+   gate line that names a repo-owned fact three weeks running).
+
+## Reason lines for a close
+
+One of these, verbatim, then a pointer where one exists:
+
+- `already there: <file> §<section>` or `absorbed by #<PR>`
+- `vendor behaviour: <vendor>; our line, if any, is <file>`
+- `lives in the repo: <repo> <path>`
+- `volatile value; the wiki points at <file> instead`
+- `state snapshot; belongs in <gap list> as a row`
+- `no gate lines` / `the gate line names the session's own PR`
