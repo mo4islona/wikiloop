@@ -8,7 +8,10 @@ set -uo pipefail
 REPO="acme/ai-wiki"
 MARKETPLACE="acme-wiki"
 PLUGIN="acme-wiki@acme-wiki"
-KNOWN="$HOME/.claude/plugins/known_marketplaces.json"
+CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+# Claude Code keeps .claude.json in CLAUDE_CONFIG_DIR when it is set, else in the home directory.
+CLAUDE_JSON="${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json"
+KNOWN="$CLAUDE_DIR/plugins/known_marketplaces.json"
 
 usage() {
   cat <<'HELP'
@@ -139,9 +142,9 @@ has_kube_context() {
 
 # has_mcp <name>: an MCP server whose name contains <name> is configured for Claude Code.
 has_mcp() {
-  python3 - "$1" <<'PY'
-import json, os, sys
-for path in (os.path.expanduser("~/.claude.json"), os.path.expanduser("~/.claude/settings.json")):
+  python3 - "$1" "$CLAUDE_JSON" "$CLAUDE_DIR/settings.json" <<'PY'
+import json, sys
+for path in sys.argv[2:]:
     try:
         servers = json.load(open(path)).get("mcpServers", {})
     except (OSError, ValueError):
