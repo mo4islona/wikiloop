@@ -21,6 +21,8 @@ from pathlib import Path
 # commands, compaction summaries, interrupts. None of them is the user typing.
 INJECTED = ("<", "/", "[", "Stop hook feedback", "This session is being continued")
 SKILL_FILE = re.compile(r"skills/([a-z0-9][a-z0-9-]*)/SKILL\.md")
+# The header of an entry `wikiloop candidate` queued while the tracker was out of reach.
+QUEUED = re.compile(r"^## \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ — ", re.MULTILINE)
 
 
 def config_path() -> Path:
@@ -127,6 +129,13 @@ def investigation(evs: list[tuple[str, str]], sig: Signals, threshold: int) -> t
 
 def cache_dir(plugin: str) -> Path:
     return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / plugin
+
+
+def queued(plugin: str) -> int:
+    try:
+        return len(QUEUED.findall((cache_dir(plugin) / "candidates.md").read_text()))
+    except OSError:
+        return 0
 
 
 def session_file(plugin: str, session_id: str, suffix: str) -> Path:

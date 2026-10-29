@@ -40,12 +40,20 @@ def main() -> int:
     except OSError:
         pass  # the rules still go out; the Stop hook falls back to counting from zero
 
+    plugin = cfg["wiki"]["plugin"]
     values = {
         "root": common.plugin_root(),
         "candidate": common.candidate_command(cfg),
         "transcript": payload.get("transcript_path") or "",
+        "cache": common.cache_dir(plugin),
+        "queued": common.queued(plugin),
     }
     context = common.fill(cfg["texts"]["session_rule"], values)
+
+    # .get: a config built by an older core has no such text, and the rules must still go out
+    queued_text = cfg["texts"].get("session_queued")
+    if values["queued"] and queued_text:
+        context += " " + common.fill(queued_text, values)
 
     has_report = cfg["report_session"]["kind"] != "none" and payload.get("transcript_path")
     if has_report:

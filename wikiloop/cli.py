@@ -24,7 +24,7 @@ in a wiki checkout (reads wikiloop.toml):
   update [REF] [--from SRC]    replace the vendored core with a release
 
 in any session (reads hooks/wikiloop.json):
-  candidate search|file|comment   the inbox, with the gate checked first
+  candidate search|file|comment|send   the inbox, with the gate checked first
   report-session FILE "WHAT"      upload a bad session for the maintainers
   session-summary FILE            where a session spent its time and tokens
 

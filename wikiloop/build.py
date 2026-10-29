@@ -139,7 +139,7 @@ def templates(cfg: dict, guides: Guides) -> dict[str, str]:
 
 def hook_texts(cfg: dict, guides: Guides) -> dict[str, str]:
     """The hooks' texts, rendered now; runtime values ({root}, {n}, ...) stay as placeholders."""
-    names = ("session-rule", "session-report", "stop-reason", "gate-reason")
+    names = ("session-rule", "session-report", "session-queued", "stop-reason", "gate-reason")
     return {name.replace("-", "_"): render_text(guides.text("hooks", name), cfg) for name in names}
 
 
