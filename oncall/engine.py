@@ -184,22 +184,43 @@ def fold(signals: list, state: dict, ctx: Context, now: float | None = None) -> 
             "tier": s["tier"], "env": s["env"], "severity": ctx.lowest, "signals": {}, "subjects": [],
             "fleet_group": s.get("fleet_group"),
         })
-
-        # a fleet problem holds one signal per name: keep the earliest start, list every subject
-        key = f"{s['source']}:{s['name']}"
-        held = p["signals"].get(key)
-        if held is None or (s["started"] and (not held["started"] or s["started"] < held["started"])):
-            p["signals"][key] = s
-        if s["subject"] and s["subject"] not in p["subjects"]:
-            p["subjects"].append(s["subject"])
-
-        # a silenced alert still describes the problem but never raises its severity
-        is_higher = ctx.rank.get(s["severity"], 0) > ctx.rank[p["severity"]]
-        if not s["silenced"] and is_higher:
-            p["severity"] = s["severity"]
-        if ctx.tier_rank.get(s["tier"], 0) > ctx.tier_rank.get(p["tier"], 0):
-            p["tier"], p["env"] = s["tier"], s["env"]
+        absorb(p, s, ctx)
     return problems
+
+
+def absorb(p: dict, s: dict, ctx: Context) -> None:
+    # a fleet problem holds one signal per name: keep the earliest start, list every subject
+    key = f"{s['source']}:{s['name']}"
+    held = p["signals"].get(key)
+    if held is None or (s["started"] and (not held["started"] or s["started"] < held["started"])):
+        p["signals"][key] = s
+    if s["subject"] and s["subject"] not in p["subjects"]:
+        p["subjects"].append(s["subject"])
+
+    # a silenced alert still describes the problem but never raises its severity
+    is_higher = ctx.rank.get(s["severity"], 0) > ctx.rank[p["severity"]]
+    if not s["silenced"] and is_higher:
+        p["severity"] = s["severity"]
+    if ctx.tier_rank.get(s["tier"], 0) > ctx.tier_rank.get(p["tier"], 0):
+        p["tier"], p["env"] = s["tier"], s["env"]
+
+
+def keep_unanswered(old: dict, cur: dict, health: dict, ctx: Context) -> dict:
+    """`cur` plus the old signals of every source that did not answer this cycle.
+
+    A down source repeats its last answer only while the watcher runs; after a restart it has
+    none. Without this, another source's report of the same problem would replace its evidence:
+    the severity would drop, and the problem would resolve while the source that saw it is down.
+    """
+    kept = [s for key, s in old["signals"].items()
+            if key not in cur["signals"] and health.get(s["source"], "ok") != "ok"]
+    if not kept:
+        return cur
+
+    merged = {**cur, "signals": dict(cur["signals"]), "subjects": list(cur["subjects"])}
+    for s in kept:
+        absorb(merged, s, ctx)
+    return merged
 
 
 def started_at(p: dict, default: float) -> float:
@@ -226,6 +247,7 @@ def advance(state: dict, current: dict, health: dict, ctx: Context, now: float |
             events.append(("REOPENED" if reopened else "NEW", problems[pid]))
             continue
 
+        cur = keep_unanswered(old, cur, health, ctx)
         escalated = ctx.rank[cur["severity"]] > ctx.rank.get(old["severity"], 0)
         joined = set(cur["subjects"]) - set(old.get("subjects", []))
         pending = sorted((set(old.get("spread_pending", [])) | joined) & set(cur["subjects"]))

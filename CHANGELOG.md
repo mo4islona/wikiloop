@@ -9,6 +9,8 @@
   fields, PKCS#8 keys. `lint.secret_patterns` adds a company's own token shapes.
 - `report-session` redacts the note with the complaint as well as the transcript, and
   removes a private key whole instead of its header line.
+- On-call: a source that is down keeps its evidence while another source still reports the
+  problem, so after a watcher restart the problem neither drops in severity nor resolves.
 
 ## 0.1.0 — 2026-10-29
 

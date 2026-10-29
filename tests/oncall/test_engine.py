@@ -135,6 +135,23 @@ class AdvanceTests(unittest.TestCase):
         self.assertEqual(kinds(events), ["SOURCE-DOWN"])
         self.assertEqual(kinds(run_cycle(self.ctx, state, [self.signal], now=NOW + 3600)), ["SOURCE-UP"])
 
+    def test_a_down_source_keeps_its_evidence_after_a_restart(self):
+        major = alert(self.ctx, "search", "SearchErrors", "search", severity="major")
+        probe = alert(self.ctx, "search", "SearchSlow", "search", source="probes")
+        state = {}
+        run_cycle(self.ctx, state, [major, probe], {"alertmanager": "ok", "probes": "ok"})
+
+        # a restarted watcher has no last answer to repeat for the source that is down
+        down = {"alertmanager": "down: timeout", "probes": "ok"}
+        run_cycle(self.ctx, state, [probe], down, NOW + 300)
+        problem = state["problems"]["search/search"]
+        self.assertEqual(problem["severity"], "major")
+        self.assertIn("alertmanager:SearchErrors", problem["signals"])
+
+        for cycle in range(2, 6):
+            run_cycle(self.ctx, state, [], down, NOW + cycle * 300)
+        self.assertEqual(state["problems"]["search/search"]["status"], "open")
+
     def test_one_failed_cycle_is_no_source_down(self):
         state = {}
         events = run_cycle(self.ctx, state, [], {"alertmanager": "down: hiccup"})
