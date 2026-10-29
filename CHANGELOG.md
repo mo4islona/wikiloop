@@ -19,6 +19,8 @@
   out of reach, such as in a Codex sandbox without network; until then the session rule
   tells the user what waits. `candidate search` reports an unreachable tracker instead of a
   traceback.
+- `wikiloop evals` runs without the maintainer's user settings, plugins and MCP servers,
+  and saves no transcripts.
 
 ## 0.1.0 — 2026-10-29
 
