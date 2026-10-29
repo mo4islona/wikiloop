@@ -1,117 +1,168 @@
 # wikiloop
 
-A team wiki that coding agents read before they act and add to when they learn something.
-wikiloop is the core: the hooks, rules, review loop and on-call screen. A company brings the
-content and a config file, and gets a plugin of its own for Claude Code and Codex.
+Turn what agents learn while working into reviewed, shared team knowledge.
 
-## What it does
+## Every session can make the next one smarter
 
-Documentation dies because writing it is a separate task from the work that produces the
-knowledge. Someone debugs a service for two hours, finds the trap, fixes it, and moves on. Six
-months later an agent spends the same two hours.
+wikiloop turns useful lessons from agent sessions into reviewed skills, grounded in your
+team's docs, code, and decisions. Agents start informed by what the team has already learned
+and propose new knowledge as they work. Each accepted lesson gives future sessions better
+context for the task ahead.
 
-wikiloop does not rely on anyone remembering. With the plugin installed:
+## One shared memory for the whole team
 
-1. Every session starts with one rule: load the wiki's skill before you reason about a system
-   it maps, and put what you learn back into the wiki, never into private memory.
-2. After an investigation, once the user has replied, a hook asks the agent once whether the
-   session found something the wiki lacks. If so, the agent files a *candidate*: symptom, root
-   cause, lesson, and two lines that say why it belongs in the wiki at all. Otherwise it says
-   `wiki: nothing new`.
-3. A shepherd skill triages candidates, lands them as small PRs, has an independent agent
-   review each PR, applies the fixes and merges what passes. What it cannot verify goes to a
-   person as one question.
-4. A gardener re-checks skills whose sources changed; trigger evals check that skill
-   descriptions still catch the words people use.
+What one agent learns can help everyone. Your team keeps its knowledge in a shared Git
+repository, and wikiloop distributes it as a plugin for **Claude Code and Codex**. Lessons
+carry across people, projects, and machines, so the team's knowledge grows with its work.
 
-[DESIGN.md](DESIGN.md) explains why each step is shaped the way it is.
+## How it works
 
-## What a company repo looks like
+The wiki is a collection of **skills**: Markdown instructions that an agent loads when a
+task calls for them. A skill can explain a product, describe a workflow, record a decision,
+or guide a recurring task. Detailed context and sources live alongside it in reference files.
 
+1. **Use what the team already knows.** A session hook tells the agent to load the relevant
+   wiki skill before acting on a subject it covers.
+2. **Propose what is missing.** After work involving tools or skills your team has configured,
+   and once the user has replied, a hook prompts the agent to check for a useful lesson.
+   The agent files a candidate issue explaining the lesson and why it belongs in the wiki,
+   or reports that there is nothing new to add.
+3. **Review and incorporate it.** A maintainer invokes the shepherd workflow to triage
+   candidates, turn accepted lessons into PRs, have a separate agent review them, and merge
+   what passes review and CI. Questions the agents cannot verify go to a person.
+4. **Keep it useful.** Maintainers run source checks to find knowledge that may have changed
+   and trigger evals to check whether real prompts lead agents to the right skills.
+
+For example, an agent learns that two steps in a publishing workflow must happen in a
+particular order. It proposes the lesson, a reviewer checks the source, and the accepted
+change becomes part of the workflow skill. The next agent following that skill gets the
+lesson before starting the task.
+
+The session hooks run automatically after installation and any required hook trust.
+Review, source checks, and evals run when a maintainer invokes them; installation does not
+schedule them. See [the design](DESIGN.md) for the reasoning behind the loop.
+
+## Start a team wiki
+
+You need Python 3.11+, Git, and the GitHub CLI (`gh`), authenticated with access to the wiki
+repository. Running agent workflows also requires Claude Code or Codex as described below.
+The Python code uses only the standard library.
+
+Create the wiki, replacing the example identity and repository with your team's:
+
+```sh
+git clone https://github.com/mo4islona/wikiloop.git
+python3 wikiloop/bin/wikiloop init acme-wiki \
+  --plugin acme-wiki --company ACME \
+  --domain "ACME products and workflows" --repo acme/ai-wiki
+cd acme-wiki
 ```
-acme-wiki/
-  wikiloop.toml         # identity, inbox, investigation signals, gate, lint caps, on-call
-  guides/               # overrides of the core's rule sections, one section at a time
-  extensions/           # own lint checks and on-call sources, in Python
-  skills/               # the knowledge: maps, debug skills, procedures
-  evals/                # real prompts and the skill each must load
-  core/                 # this repo, vendored at a release; never edited by hand
-  .claude-plugin/ hooks/ skills/wiki-*/ CONTRIBUTING.md INDEX.md ...   # generated
+
+The new directory contains a config, two starter skills (`map-product` and `map-infra`),
+an eval case, CI, and a copy of wikiloop in `core/`.
+
+Fill the starter skills with enough context to help with a real task. Choose which tools
+and skills should trigger contribution prompts in `wikiloop.toml`, then build and check:
+
+```sh
+python3 core/bin/wikiloop build
+python3 core/bin/wikiloop lint
+python3 core/bin/wikiloop check
 ```
 
-`wikiloop build` compiles the config, the guides and the core's templates into the plugin.
-Generated files say so in their first lines; CI fails when they are out of date.
+Commit and push this directory to the repository named by `--repo`. For a new GitHub
+repository, for example:
 
-## Start a wiki
-
-```
-git clone git@github.com:mo4islona/wikiloop.git
-python3 wikiloop/bin/wikiloop init acme-wiki --plugin acme-wiki --company ACME \
-  --domain "ACME systems" --repo acme/ai-wiki
-```
-
-Then fill the two map skills it creates, push, and install the plugin from the wiki repo:
-
-```
-./install.sh --agents claude,codex     # or one of them; --check reports without installing
+```sh
+git init -b main
+git add .
+git commit -m "Create team wiki"
+gh repo create acme/ai-wiki --private --source=. --remote=origin --push
+gh label create candidate --repo acme/ai-wiki --description "Proposed wiki knowledge"
 ```
 
-The installer checks prerequisites (and the wiki's own, from `[install] checks`), adds the
-marketplace, installs and enables the plugin. In Claude Code that is the whole setup. Codex
-runs plugin hooks only after a person trusts them: open `/hooks` in a Codex session once.
-`bootstrap.sh` is the one-line entry point for a private wiki repo.
+## Install the plugin
 
-| | Claude Code | Codex |
+From a clone of your team's wiki, run:
+
+```sh
+./install.sh --agents claude,codex
+```
+
+Use `--agents claude` or `--agents codex` to select one. Add `--check` to report prerequisites
+and installation status. The installer checks access, adds the marketplace, and installs and
+enables the plugin. Start a new agent session afterwards.
+
+**In Codex, open `/hooks` once and trust the wiki's hooks.** Skills are available before
+that step; the automatic contribution prompts require hook trust.
+
+| Capability | Claude Code | Codex |
 |---|---|---|
-| skills | yes | yes |
-| session rule, candidate prompt, gate | yes | yes, after `/hooks` trust |
-| on-call status line and pane | yes | no; the watcher and its report work |
-| maintainer skills (`.claude/skills/`) | yes | no |
+| Team knowledge as skills | Yes | Yes |
+| Session rules and contribution prompts | Yes | After hook trust |
+| Maintainer skills in the wiki checkout | Yes | — |
+| Optional on-call status line and pane | Yes | Watcher and text report only |
 
-Python 3.11+ for the maintainer commands (`build`, `lint`, `check`); the hooks and the
-commands a session runs work on any `python3` from 3.9. Nothing to install: stdlib only.
+The hooks and session commands run on Python 3.9+. Building and maintaining the wiki requires
+Python 3.11+. Each wiki also gets a `bootstrap.sh` entry point for distributing its installer.
 
-## Make it yours
+## Maintain the knowledge
 
-| To change | Edit | Reference |
-|---|---|---|
-| names, inbox, what counts as investigating, gate lines, caps | `wikiloop.toml` | [docs/config.md](docs/config.md) |
-| the wording of a rule, a new rule | `guides/<guide>.md`, one section | [guides/](guides/) and the skeleton's `guides/README.md` |
-| a lint check of your own | `extensions/lint/*.py` | [docs/config.md](docs/config.md#extensions) |
-| the on-call screen and its sources | `[oncall]`, `extensions/oncall/*.py` | [docs/oncall.md](docs/oncall.md) |
+Open Claude Code in the wiki checkout and ask it to **“shepherd the wiki”**. The generated
+`wiki-shepherd` skill runs the candidate, review, and merge workflow. Its state lives in
+GitHub issues and PR comments, so a later session can continue the work.
 
-What the config cannot do is switch the loop off: a zero threshold, an empty gate or a
-signal-less investigation table fails the build, and `wikiloop check` runs the real hooks
-against the wiki's own config to prove they still ask, once, after the user replied.
+The CLI also provides commands for checking the wiki:
 
-## Update
-
-```
-python3 core/bin/wikiloop update            # the latest release
+```sh
+python3 core/bin/wikiloop inbox       # open candidates and PRs
+python3 core/bin/wikiloop gardener    # skills whose sources changed or need re-verification
+python3 core/bin/wikiloop evals       # whether prompts trigger the expected skills
 ```
 
-One PR per release: the core is replaced whole, config migrations run, everything is rebuilt
-and checked. [docs/upgrading.md](docs/upgrading.md) has the details, including how a guide
-override learns that the core changed the section under it.
+`gardener --fix` starts Claude Code sessions to re-verify skills and open PRs.
+Trigger evals also use Claude Code. These commands make model calls; the session hooks do
+not.
 
-## This repo
+## Adapt it to your team
 
-| Path | What |
+Your wiki owns the knowledge and configuration. It includes a copy of this repository in
+`core/`, so each core update can be reviewed together with the plugin it generates.
+
+| What you want to change | Where it lives |
 |---|---|
-| `bin/wikiloop`, `wikiloop/` | the CLI |
-| `hooks/` | SessionStart, Stop and candidate-gate hooks |
-| `guides/` | the rules, in sections a wiki can override |
-| `templates/plugin/` | skills every session with the plugin gets: `wiki-contribute`, `wiki-report-session` |
-| `templates/maintainer/` | skills that need a clone of the wiki, generated into its `.claude/skills/`: `wiki-triage`, `wiki-pr-review`, `wiki-shepherd` |
-| `templates/repo/` | the wiki repo's CONTRIBUTING.md and AGENTS.md |
-| `oncall/` | the on-call engine, sources, its skill and the Claude Code pane |
-| `templates/repo/install.sh` | the installer each wiki gets, for Claude Code and Codex |
-| `template/` | the skeleton `wikiloop init` copies |
-| `example/` | ACME, a fictional wiki every change is built and checked against |
-| `evals/negative/` | prompts no wiki skill may catch, run with every wiki's evals |
-| `tests/` | `python3 -m unittest discover -s tests -t .` |
+| Knowledge, procedures, and supporting sources | `skills/` |
+| Identity, contribution signals, and validation settings | `wikiloop.toml` |
+| The wording of wiki rules | `guides/`, overriding individual core sections |
+| Checks specific to your team | `extensions/lint/` |
+| Prompts that should load a particular skill | `evals/` |
+| Optional on-call sources and presentation | `[oncall]` and `extensions/oncall/` |
+
+Run `python3 core/bin/wikiloop build` after changing configuration or guides. It generates
+the plugin manifests, hooks, shared workflow skills, maintainer skills, and wiki index.
+The generated CI workflow checks that those files are up to date and that the wiki passes
+lint and hook checks.
+
+To update the core to its latest release:
+
+```sh
+python3 core/bin/wikiloop update
+```
+
+The command replaces the core, applies config migrations, rebuilds, and checks the result.
+Review and commit the changes as one PR. See [upgrading](docs/upgrading.md) for guide
+overrides and patches across releases.
+
+## Further reading
+
+- [Example wiki](example/) — a fictional team's skills, config, and generated plugin.
+- [Design](DESIGN.md) — how contribution prompts, review, and verification fit together.
+- [Configuration](docs/config.md) — settings, defaults, and custom lint checks.
+- [Guide overrides](template/guides/README.md) — adapt the rules section by section.
+- [On-call](docs/oncall.md) — the optional watcher, sources, and Claude Code pane.
+- [Session reports](docs/report-session.md) — configure reports for sessions that went wrong.
 
 ## License
 
-MIT, see [LICENSE](LICENSE). A vendored core keeps its copy in `core/LICENSE`; the content and
-config of a wiki are its company's own.
+[MIT](LICENSE). Each vendored core includes its license in `core/LICENSE`; your team's wiki
+content and configuration remain your own.
