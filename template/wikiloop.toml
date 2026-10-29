@@ -1,0 +1,23 @@
+# The wiki's settings. `python3 core/bin/wikiloop build` compiles them into the plugin;
+# every key and its default: core/docs/config.md.
+
+[wiki]
+plugin = "${plugin}"
+company = "${company}"
+domain = "${domain}"
+repo = "${repo}"
+
+[investigation]
+# What counts as investigating a live system. A debug skill load counts as a whole
+# investigation; each matching shell command or MCP call counts one.
+debug_skills = ["debug-*"]
+commands = ["kubectl", "psql"]
+mcp_tools = []
+threshold = 5
+reask = 20
+
+[skills]
+vendor_examples = "Kubernetes, Docker, PostgreSQL"
+
+[report_session]
+kind = "none"     # gcs or s3 with a bucket, to let users upload a bad session
